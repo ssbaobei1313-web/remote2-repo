@@ -1,0 +1,24 @@
+# -*- coding: utf-8 -*-
+# 最简洁稳定版配置
+
+logging:
+  level: "INFO"
+  file: "logs/spider.log"
+
+proxy_pool:
+  enable: true
+  max_proxies: 50
+  validate_timeout: 5
+  refresh_interval: 300
+  sources:
+    - "https://www.proxy-list.download/api/v1/get?type=http"
+    - "https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt"
+
+browser_pool:
+  max_browsers: 6
+  headless: true
+  reuse_contexts: true
+
+runner:
+  concurrency: 10
+  account_file: "Final_accounts_List.txt"

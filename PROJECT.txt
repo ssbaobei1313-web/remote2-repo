@@ -1,0 +1,64 @@
+PROJECT/
+│
+├── main.py                     # 程序入口，负责 orchestrate（调度）
+│
+├── core/
+│   ├── excel_writer.py         # 负责写入 Excel（单一职责）
+│   ├── anti_detect.py          # 负责反爬策略（UA、代理、指纹、随机延迟）
+│   ├── account_reader.py       # 读取账号列表（CSV/Excel/TXT）
+│   ├── page_parser.py          # BeautifulSoup / XPath / 正则解析页面
+│   ├── process_account.py      # 处理单个账号的业务逻辑（高层模块）
+│   └── utils.py                # 通用工具（日志、重试、时间工具）
+│
+├── checkpoint/
+│   ├── checkpoint_utils.py     # 断点续爬工具
+│   └── processed.txt           # 已处理账号记录
+│
+└── output/                     # 输出目录（Excel、JSON、日志）
+
+
+
+mydg_crawler/
+│
+├── config/
+│   └── config.yaml
+│
+├── core/
+│   ├── logger.py
+│   ├── locker.py
+│   ├── config_loader.py
+│   ├── file_waiter.py
+│   ├── screenshot.py
+│   └── browser.py
+│
+├── crawler/
+│   ├── account_processor.py
+│   └── runner.py
+│
+├── data/
+│   ├── Final_accounts_List.txt
+│   └── output/
+│
+├── logs/
+│
+├── snapshots/
+│
+├── main.py
+└── requirements.txt
+
+
+?? 每个模块的职责（企业级清晰分工）
+1. core/ —— 核心基础设施层
+模块	职责
+logger.py	初始化 loguru 日志系统
+locker.py	portalocker 文件锁
+config_loader.py	加载 config.yaml
+file_waiter.py	自动等待 Final_accounts_List 文件
+screenshot.py	Playwright 错误快照
+browser.py	创建浏览器、上下文、页面
+
+
+2. crawler/ —— 业务逻辑层
+模块	职责
+account_processor.py	针对单个账号执行 Playwright 操作
+runner.py	读取账号、循环处理、调度 Playwright

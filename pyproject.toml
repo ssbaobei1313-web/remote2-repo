@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sql_safe_project"
+version = "0.1.0"
+description = "Playwright GUI crawler with async runner, browser pool, proxy pool, and SQL-safe utilities."
+authors = [
+    { name = "Bei" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "sqlalchemy",
+    "pymysql"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
