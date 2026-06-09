@@ -1,11 +1,51 @@
-# async_runner/runner.py
+# src/async_runner/runner.py
 import asyncio
+import logging
 from typing import Optional, Dict, Any
 from async_runner.scheduler import Scheduler
 from async_runner.executor import Executor
 from async_runner.task_model import Task, TaskStatus
 from async_runner.persistence import SQLitePersistence
 from async_runner.hooks import Hooks
+
+logger = logging.getLogger(__name__)
+
+def run_coroutine(coro):
+    """
+    Run or return a coroutine in a way that works from both sync and async contexts.
+
+    - If called from a running event loop (async context), this returns a coroutine
+      that the caller should `await`. The coroutine will catch exceptions, log them,
+      and return None on error.
+    - If called from a synchronous context (no running loop), this will run the
+      coroutine to completion using asyncio.run and return the result (or None on error).
+
+    Usage:
+        # from async code
+        result = await run_coroutine(some_coro())
+
+        # from sync code
+        result = run_coroutine(some_coro())
+    """
+    async def _runner():
+        try:
+            return await coro
+        except Exception:
+            logger.exception("Exception while running coroutine")
+            return None
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        # In an existing event loop: return coroutine to be awaited by caller.
+        return _runner()
+    else:
+        # No running loop: run to completion synchronously.
+        return asyncio.run(_runner())
+
 
 class Runner:
     def __init__(

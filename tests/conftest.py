@@ -1,9 +1,115 @@
-﻿# tests/conftest.py
-import sys
-from pathlib import Path
+��"""
+tests/conftest.py
 
-# 将项目根目录加入 sys.path，确保 pytest 能导入 src 包
-ROOT = Path(__file__).resolve().parents[1]
-ROOT_STR = str(ROOT)
-if ROOT_STR not in sys.path:
-    sys.path.insert(0, ROOT_STR)
+统一 fixtures：TaskStub、mock_persistence、mock_executor、event_loop
+设计原则：
+- 简洁、可复用、兼容同步/异步测试
+- mock_persistence 提供 async save/load/delete，返回与生产代码兼容的 Task 对象
+- mock_executor 提供 run_task_callable 的替代实现（可注入 Runner）
+"""
+
+import asyncio
+import dataclasses
+import pytest
+from typing import Any, Dict, List, Optional
+
+@dataclasses.dataclass
+class TaskStub:
+    id: str
+    payload: Dict[str, Any]
+    status: str = "pending"
+    attempts: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"id": self.id, "payload": self.payload, "status": self.status, "attempts": self.attempts}
+
+@pytest.fixture
+def sample_task():
+    return TaskStub(id="task-1", payload={"url": "http://example"}, status="pending")
+
+@pytest.fixture
+def event_loop():
+    """
+    Provide a fresh event loop for each test function to avoid cross-test interference.
+    Compatible with pytest-asyncio style tests.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        yield loop
+    finally:
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        loop.close()
+
+class MockPersistence:
+    """
+    Minimal async-compatible persistence mock.
+    - save_task(task): store by id
+    - load_pending(): return list[TaskStub]
+    - delete_task(task_id)
+    """
+    def __init__(self, initial: Optional[List[TaskStub]] = None):
+        self._store: Dict[str, TaskStub] = {}
+        initial = initial or []
+        for t in initial:
+            self._store[t.id] = t
+
+    async def save_task(self, task: TaskStub-> None:
+        # simulate small IO latency
+        await asyncio.sleep(0)
+        self._store[task.id] = task
+
+    async def load_pending(self-> List[TaskStub]:
+        await asyncio.sleep(0)
+        return [t for t in self._store.values(if t.status == "pending"]
+
+    async def delete_task(self, task_id: str) -> None:
+        await asyncio.sleep(0)
+        self._store.pop(task_id, None)
+
+@pytest.fixture
+def mock_persistence():
+    return MockPersistence()
+
+class MockExecutor:
+    """
+    Mock executor that simulates running a task.
+    run_task_callable(task-> coroutine or result
+    - By default returns a dict result after a tiny await.
+    - Tests can monkeypatch run_task to raise or return different values.
+    """
+    def __init__(self):
+        self.ran: List[str] = []
+
+    async def run_task(self, task: TaskStub) -> Dict[str, Any]:
+        await asyncio.sleep(0)
+        self.ran.append(task.id)
+        return {"task_id": task.id, "status": "ok"}
+
+@pytest.fixture
+def mock_executor():
+    return MockExecutor()
+
+@pytest.fixture
+def task_factory():
+    """
+    Simple factory to create TaskStub instances with incremental ids.
+    """
+    counter = {"i": 0}
+    def _make(payload=None, status="pending"):
+        counter["i"] += 1
+        return TaskStub(id=f"task-{counter['i']}", payload=payload or {}, status=status)
+    return _make
+
+# Helper to run coroutine or sync function in tests consistently
+def run_coroutine_sync(coro_or_val, loop: asyncio.AbstractEventLoop):
+    """
+    If coro_or_val is awaitable, run it on the provided loop and return result.
+    If it's a plain value, return it directly.
+    """
+    if asyncio.iscoroutine(coro_or_valor asyncio.isfuture(coro_or_val):
+        return loop.run_until_complete(coro_or_val)
+    return coro_or_val
+
+@pytest.fixture
+def run_sync(event_loop):
+    return lambda coro_or_val: run_coroutine_sync(coro_or_val, event_loop)

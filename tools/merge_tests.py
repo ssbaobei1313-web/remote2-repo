@@ -1,0 +1,178 @@
+��#!/usr/bin/env python3
+"""
+tools/merge_tests.py
+
+简单的测试合并/去重建议脚本（非自动合并到原文件）。
+功能：
+- 扫描 tests/ 目录下的 test_*.py 文件
+- 基于函数/类名与文本相似度检测高度相似或重复的测试用例
+- 为每组相似文件生成合并建议到 tests/_merged_suggestions/
+- 输出简短报告到控制台
+
+注意：
+- 本脚本只生成建议，**不会**修改原始测试文件。
+- 合并建议需要人工审查：fixture 名称、作用域、Mock 风格、异步/同步差异需人工确认。
+"""
+from pathlib import Path
+import difflib
+import hashlib
+import json
+import os
+import re
+from collections import defaultdict
+
+ROOT = Path(__file__).resolve().parent.parent if Path(__file__).name == "merge_tests.py" else Path.cwd()
+TESTS_DIR = ROOT / "tests"
+OUT_DIR = TESTS_DIR / "_merged_suggestions"
+SIMILARITY_THRESHOLD = 0.85  # 0..1, 越高越严格
+
+def read_tests():
+    files = sorted([p for p in TESTS_DIR.glob("test_*.py")])
+    contents = {}
+    for p in files:
+        contents[str(p.relative_to(TESTS_DIR))] = p.read_text(encoding="utf-8")
+    return contents
+
+def split_top_level_functions(src_text):
+    """
+    粗略按顶级 def 或 class 分割，保留头部 import/注释块作为 'module_header'
+    返回 dict: name -> body_text
+    """
+    lines = src_text.splitlines()
+    header_lines = []
+    rest = []
+    pattern = re.compile(r'^(def |class )')
+    found_first = False
+    for ln in lines:
+        if not found_first and pattern.match(ln.strip()):
+            found_first = True
+            rest.append(ln)
+        elif not found_first:
+            header_lines.append(ln)
+        else:
+            rest.append(ln)
+    module_header = "\n".join(header_lines).strip()
+    body = "\n".join(rest)
+    # split by top-level defs/classes (naive)
+    parts = re.split(r'(?m)^(?=def |class )', body)
+    mapping = {}
+    for part in parts:
+        if not part.strip():
+            continue
+        # extract name
+        m = re.match(r'^(def|class)\s+([A-Za-z0-9_]+)', part.strip())
+        name = m.group(2if m else f"anon_{hashlib.md5(part.encode()).hexdigest()[:8]}"
+        mapping[name] = part.rstrip()
+    return module_header, mapping
+
+def similarity(a, b):
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+def find_similar_tests(contents):
+    # map file -> {name: body}
+    parsed = {}
+    for fname, text in contents.items():
+        header, funcs = split_top_level_functions(text)
+        parsed[fname] = {"header": header, "funcs": funcs}
+
+    # compare every function across files
+    groups = []
+    visited = set()
+    items = []
+    for fname, data in parsed.items():
+        for name, body in data["funcs"].items():
+            items.append((fname, name, body))
+
+    n = len(items)
+    for i in range(n):
+        if i in visited:
+            continue
+        fname_i, name_i, body_i = items[i]
+        group = [(fname_i, name_i, body_i)]
+        visited.add(i)
+        for j in range(i+1, n):
+            if j in visited:
+                continue
+            fname_j, name_j, body_j = items[j]
+            sim = similarity(body_i, body_j)
+            if sim >= SIMILARITY_THRESHOLD:
+                group.append((fname_j, name_j, body_j))
+                visited.add(j)
+        if len(group) > 1:
+            groups.append(group)
+    return parsed, groups
+
+def write_suggestions(parsed, groups):
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    report = {"groups": []}
+    for idx, group in enumerate(groups, start=1):
+        files = sorted({f for f, n, b in group})
+        suggestion_path = OUT_DIR / f"group_{idx:02d}_suggestion.md"
+        # build suggestion content
+        lines = []
+        lines.append(f"# 合并建议组 {idx}")
+        lines.append("")
+        lines.append("**涉及文件**: " + ", ".join(files))
+        lines.append("")
+        lines.append("**相似测试函数**:")
+        for f, n, b in group:
+            lines.append(f"- `{f}` :: `{n}`")
+        lines.append("")
+        lines.append("**建议**:")
+        lines.append("- 选择最通用、覆盖面最广的断言作为保留版本。")
+        lines.append("- 统一 fixture 名称与作用域（session/function）。")
+        lines.append("- 将重复的 setup/teardown 提取到 `conftest.py`。")
+        lines.append("- 如果存在同步/异步差异，保留两个版本并在名字中标注 `_async` 或 `_sync`。")
+        lines.append("")
+        lines.append("**自动合并草案（仅供参考，需人工审查）**")
+        lines.append("")
+        # pick the longest body as canonical
+        canonical = max(group, key=lambda t: len(t[2]))
+        header_candidates = [parsed[f]["header"] for f,_,_ in group if parsed[f]["header"]]
+        header = header_candidates[0] if header_candidates else ""
+        lines.append("```python")
+        if header:
+            # include imports once
+            lines.append(header)
+            lines.append("")
+        lines.append(canonical[2])
+        lines.append("```")
+        suggestion_path.write_text("\n".join(lines), encoding="utf-8")
+        report["groups"].append({
+            "id": idx,
+            "files": files,
+            "canonical": {"file": canonical[0], "name": canonical[1]},
+            "suggestion_file": str(suggestion_path.relative_to(OUT_DIR.parent))
+        })
+    # write summary
+    summary_path = OUT_DIR / "summary.json"
+    summary_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    return report
+
+def main():
+    print("扫描 tests/ 目录...")
+    contents = read_tests()
+    parsed, groups = find_similar_tests(contents)
+    if not groups:
+        print("未发现高度相似或重复的测试函数。")
+        return
+    print(f"发现 {len(groups)} 组相似测试，正在生成建议到 {OUT_DIR} ...")
+    report = write_suggestions(parsed, groups)
+    print("生成完成。请审查以下文件：")
+    for g in report["groups"]:
+        print(" -", g["suggestion_file"])
+    print("")
+    print("审查要点：")
+    print(" - 统一 fixture 名称与作用域（session vs function）")
+    print(" - 统一 Mock 风格（同步 Mock vs 异步 Mock）")
+    print(" - 保留更明确或覆盖面更广的断言")
+    print(" - 将重复 setup 提取到 tests/conftest.py")
+    print("")
+    print("运行示例：")
+    print("  python tools/merge_tests.py")
+    print("合并后请运行：")
+    print("  pytest tests/test_persistence.py tests/test_async_runner_runner_impl.py -q")
+    print("  pytest tests/test_runner_basic.py -q")
+
+if __name__ == "__main__":
+    main(

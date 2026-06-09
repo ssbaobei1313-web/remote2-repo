@@ -1,0 +1,109 @@
+{
+  "groups": [
+    {
+      "id": 1,
+      "files": [
+        "test_executor.py"
+      ],
+      "canonical": {
+        "file": "test_executor.py",
+        "name": "browser_pool"
+      },
+      "suggestion_file": "_merged_suggestions\\group_01_suggestion.md"
+    },
+    {
+      "id": 2,
+      "files": [
+        "test_proxy_sources_impl.py",
+        "test_proxy_sources_validator.py",
+        "test_proxy_validator_impl.py"
+      ],
+      "canonical": {
+        "file": "test_proxy_sources_impl.py",
+        "name": "_maybe_await"
+      },
+      "suggestion_file": "_merged_suggestions\\group_02_suggestion.md"
+    },
+    {
+      "id": 3,
+      "files": [
+        "test_proxy_sources_validator.py",
+        "test_proxy_validator_impl.py"
+      ],
+      "canonical": {
+        "file": "test_proxy_sources_validator.py",
+        "name": "test_proxy_validator_exports"
+      },
+      "suggestion_file": "_merged_suggestions\\group_03_suggestion.md"
+    },
+    {
+      "id": 4,
+      "files": [
+        "test_proxy_sources_validator.py",
+        "test_proxy_validator_impl.py"
+      ],
+      "canonical": {
+        "file": "test_proxy_sources_validator.py",
+        "name": "test_proxy_validator_class_behavior_if_present"
+      },
+      "suggestion_file": "_merged_suggestions\\group_04_suggestion.md"
+    },
+    {
+      "id": 5,
+      "files": [
+        "test_proxy_sources_validator.py",
+        "test_proxy_validator_impl.py"
+      ],
+      "canonical": {
+        "file": "test_proxy_sources_validator.py",
+        "name": "test_proxy_validator_function_behavior_if_present"
+      },
+      "suggestion_file": "_merged_suggestions\\group_05_suggestion.md"
+    },
+    {
+      "id": 6,
+      "files": [
+        "test_runner_core.py",
+        "test_runner_worker.py"
+      ],
+      "canonical": {
+        "file": "test_runner_core.py",
+        "name": "DummyScheduler"
+      },
+      "suggestion_file": "_merged_suggestions\\group_06_suggestion.md"
+    },
+    {
+      "id": 7,
+      "files": [
+        "test_safe_query_extra.py"
+      ],
+      "canonical": {
+        "file": "test_safe_query_extra.py",
+        "name": "test_safe_order_by_invalid_type"
+      },
+      "suggestion_file": "_merged_suggestions\\group_07_suggestion.md"
+    },
+    {
+      "id": 8,
+      "files": [
+        "test_safe_query_extra.py"
+      ],
+      "canonical": {
+        "file": "test_safe_query_extra.py",
+        "name": "test_bulk_query_sql_not_string"
+      },
+      "suggestion_file": "_merged_suggestions\\group_08_suggestion.md"
+    },
+    {
+      "id": 9,
+      "files": [
+        "test_safe_query_extra.py"
+      ],
+      "canonical": {
+        "file": "test_safe_query_extra.py",
+        "name": "test_bulk_query_item_not_dict"
+      },
+      "suggestion_file": "_merged_suggestions\\group_09_suggestion.md"
+    }
+  ]
+}
